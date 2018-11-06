@@ -1,5 +1,6 @@
-# Data directory
+# Data and experiments directory
 data/*
+experiments/*
 
 # Crappy .DS_Store thingy
 *.DS_Store

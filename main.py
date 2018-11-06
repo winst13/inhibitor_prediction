@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torch.utils.data import sampler
+from torch.utils.data.sampler import SubsetRandomSampler
 
 import torchvision.datasets as dset
 import torchvision.transforms as T
@@ -47,7 +47,7 @@ parser.add_argument("--l2reg", default=0, type=float, help="l2 regularization ra
 parser.add_argument("--epoch_len", default = 10000, type=int, help="Number of curves in an epoch")
 parser.add_argument("--optimizer", default="Adam", help="type of optimizer")
 parser.add_argument("--scheduler", default=None, help="tells the model what kind of scheduler to create")
-parser.add_argument("--generator_mode", default="uniform", help="what kind of curves to generate, also subfolder name")
+parser.add_argument("--generator_mode", default="default", help="what kind of curves to generate, also subfolder name")
 parser.add_argument("--loss_name", default="MSE", help="what kind of loss function to use")
 parser.add_argument("--momentum", default=-1.0, type=float, help="momentum of optimizer, if it requires one")
 parser.add_argument("--nesterov", action='store_true', help="whether SGD is Nesterov or not")
@@ -69,9 +69,13 @@ generator_mode = args.generator_mode
 loss_name = args.loss_name
 momentum = args.momentum
 nesterov = args.nesterov
-noise = args.noise
-num_curves = args.numcurves
-num_sampling = args.num_sampling
+
+BATCH_SIZE = args.batch_size
+EPOCH_LEN = args.epoch_len
+
+validation_split = .2
+shuffle_dataset = True
+random_seed= 42
 
 #Tensorboard and saving/loading
 load_check = args.load_check
@@ -80,10 +84,6 @@ print_every = args.print_every
 save_every = args.save_every
 exp_name = args.exp_name
 exp_dir = os.path.join("experiments", generator_mode)
-
-#Hyperparameters
-BATCH_SIZE = args.batch_size
-EPOCH_LEN = args.epoch_len
 
 #Make sure parameters are valid
 assert mode == 'train' or mode == 'val' or mode == 'test'
@@ -100,18 +100,28 @@ else:
 print('using device:', device)
 
 #define data sets and data loaders
+data_len = None
+input_len = None
 if generator_mode == "default":
-    generator_train = MyDataset(filename = "")
-    generator_val = MyDataset(filename = "")
-    generator_test = MyDataset(filename = "")
-    loader = DataLoader(generator, batch_size=BATCH_SIZE)
-    loader_val = DataLoader(generator_val, batch_size=BATCH_SIZE)
+    generator_train = MyDataset(filename = "./data/train_test/cdk2_train.csv")
+    generator_test = MyDataset(filename = "./data/train_test/cdk2_test.csv")
+    data_len = len(generator_train)
+    input_len = generator_train.feature_len
+    indices = list(range(data_len))
+    split = int(np.floor(validation_split * data_len))
+    if shuffle_dataset :
+        np.random.seed(random_seed)
+        np.random.shuffle(indices)
+    train_indices, val_indices = indices[split:], indices[:split]
+    train_sampler = SubsetRandomSampler(train_indices)
+    val_sampler = SubsetRandomSampler(val_indices)
+    loader = DataLoader(generator_train, batch_size=BATCH_SIZE, sampler = train_sampler)
+    loader_val = DataLoader(generator_train, batch_size=BATCH_SIZE, sampler = val_sampler)
     loader_test = DataLoader(generator_test, batch_size=BATCH_SIZE)
     
 #create models
-model = None
 if model_name == "baseline":
-    model = BaselineModel(drop_rate=dropout, num_curves=num_curves, num_wavenumbers = num_wavenumbers)
+    model = BaselineModel(input_len, drop_rate=dropout)
 else:
     sys.exit("model_name %s was not found"%(model_name))
     
@@ -167,7 +177,7 @@ def train(train_loader, val_loader, model, optimizer, writer, debug, epoch = 0, 
             x = x.to(device=device, dtype=dtype)
             y = y.to(device=device, dtype=torch.float)
             
-            pred = model(x).view(-1, num_curves)
+            pred = model(x).squeeze()
             optimizer.zero_grad()
             loss = nn.MSELoss()(pred, y) #may need to change loss function
             loss.backward()
@@ -175,19 +185,20 @@ def train(train_loader, val_loader, model, optimizer, writer, debug, epoch = 0, 
             
             if t % print_every == 0:
                 print('Iteration %d: batch train loss = %06f'%(t, float(loss.item())))
-        val_loss = test(val_loader, model, loss_func, debug)
+        val_loss, val_acc = test(val_loader, model, loss_func, debug)
         
         if scheduler is not None:
             scheduler.step(test_loss)
         print ('Epoch %d: train loss = %06f'%(epoch, float(loss.item())))
         print ('Epoch %d: val loss = %06f'%(epoch, val_loss))
+        print ('Epoch %d: val acc = %06f'%(epoch, val_acc))
         if epoch%save_every == 0:
             writer.add_scalar('loss', val_loss, epoch)
             save_model({
                 'epoch': epoch,
                 'state_dict': model.state_dict(),
                 'optimizer' : optimizer.state_dict(),
-                }, test_loss, exp_dir, exp_name)
+                }, val_loss, exp_dir, exp_name)
         if epoch == 0:
             writer.add_graph(model, x)
         epoch += 1
@@ -198,8 +209,13 @@ def train(train_loader, val_loader, model, optimizer, writer, debug, epoch = 0, 
 def test(loader, model, loss_func, debug):
     loss = 0
     model.eval()  # set model to evaluation mode
+    truepos = 0
+    falsepos = 0
+    trueneg = 0
+    falseneg = 0
+    tot = 0
     with torch.no_grad():
-        for t, sample in enumerate(test_loader):
+        for t, sample in enumerate(loader):
             x = sample['x']
             y = sample['y']
             
@@ -207,25 +223,39 @@ def test(loader, model, loss_func, debug):
             x = x.to(device=device, dtype=dtype)
             y = y.to(device=device, dtype=torch.float)
             
-            pred = model(x).view(-1, num_curves)
+            pred = model(x).squeeze()
             loss += loss_func(pred, y)
+            
+            truepos += len([1 for i in range(len(y)) if y[i] == 1 and torch.round(pred[i]) == 1])
+            falsepos += len([1 for i in range(len(y)) if y[i] == 0 and torch.round(pred[i]) == 1])
+            trueneg += len([1 for i in range(len(y)) if y[i] == 0 and torch.round(pred[i]) == 0])
+            falseneg += len([1 for i in range(len(y)) if y[i] == 1 and torch.round(pred[i]) == 0])
+            tot += len(pred)
 
             if debug:
+                pass
                 #do something
-    return loss #may or may not want to add other things to return
+        
+        print (truepos, falsepos, trueneg, falseneg)
+        accuracy = (truepos + trueneg)/tot
+        precision = truepos/(truepos + falsepos)
+        recall = truepos/(truepos + falseneg)
+        f1 = 2*precision*recall/(precision + recall)
+        print ("F1 = ", f1)
+    return loss, accuracy #may or may not want to add other things to return
 
 epoch = 0
 if load_check:
-    epoch, loss_list = load_model(exp_dir, exp_name, model, optimizer, mode = 'checkpoint', lr = learning_rate)
+    epoch = load_model(exp_dir, exp_name, model, optimizer, mode = 'checkpoint', lr = learning_rate)
 elif load_best:
-    epoch, loss_list = load_model(exp_dir, exp_name, model, optimizer, mode = 'best', lr = learning_rate)
+    epoch = load_model(exp_dir, exp_name, model, optimizer, mode = 'best', lr = learning_rate)
     
 #execute something
 try:
     if mode == 'train':
         writer = SummaryWriter(log_dir=os.path.join(exp_dir, exp_name))
         train(loader, loader_val, model, optimizer, writer, debug,
-              epoch = epoch, loss_list = loss_list, test_loss_func = loss_func, max_epoch = num_epochs)
+              epoch = epoch, test_loss_func = loss_func, max_epoch = num_epochs, scheduler=scheduler)
     elif mode == 'test':
         loss = test(loader_test, model, debug, loss_func = loss_func)
         print ("test loss = %06f"%(loss))
