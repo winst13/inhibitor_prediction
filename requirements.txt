@@ -7,3 +7,13 @@ matplotlib
 gevent==1.2.2
 chembl_webresource_client
 keras
+pandas
+rdkit
+boost
+joblib
+sklearn
+numpy
+six
+mdtraj
+tensorflow
+
