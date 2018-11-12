@@ -1,0 +1,4 @@
+1. download data
+2. virtualenv -p python3 venv
+3. source venv/bin/activate
+2. pip install -r requirements.txt

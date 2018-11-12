@@ -1,0 +1,9 @@
+numpy
+scipy
+h5py
+tensorflow
+tensorflow-gpu
+matplotlib
+gevent==1.2.2
+chembl_webresource_client
+keras
