@@ -16,3 +16,4 @@ Course project for CS 273B and CS 229.  The goal is to train a deep learning mod
 	sudo apt-get install python-rdkit librdkit1 rdkit-data
 12. Install https://github.com/kundajelab/simdna
 13. gpu=0 bash scripts/install_deepchem_conda.sh (gpu=1 for GPU support)
+14. Move deepchem folder to base directory
