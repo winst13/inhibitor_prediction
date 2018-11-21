@@ -4,6 +4,7 @@ deepchem/*
 # Data and experiments directory
 data/*
 experiments/*
+assets/BACE/*
 
 # Crappy .DS_Store thingy
 *.DS_Store
