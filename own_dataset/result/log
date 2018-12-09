@@ -1,0 +1,13 @@
+[
+    {
+        "train/main/roc_auc": 0.7332760165493979, 
+        "val/main/roc_auc": 0.7475087719298246, 
+        "validation/main/loss": 25.860905408859253, 
+        "iteration": 36, 
+        "elapsed_time": 351.9869840145111, 
+        "epoch": 1, 
+        "main/accuracy": 0.5147569444444444, 
+        "validation/main/accuracy": 0.5379464291036129, 
+        "main/loss": 1387.8427800072564
+    }
+]

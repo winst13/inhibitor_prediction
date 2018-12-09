@@ -17,6 +17,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import os
 import sys
+import pickle
 
 from utils.dataset_class import *
 from models.baseline import BaselineModel
@@ -25,6 +26,27 @@ from models.cnn import ConvModel
 from utils.checkpoint import save_model, load_model
 from utils.scheduler import CosineAnnealingWithRestartsLR
 from models.swish import Swish
+from models.gcn import GraphConvPredictor
+
+#chainer
+from __future__ import print_function
+
+import chainer
+from chainer.datasets import split_dataset_random
+from chainer import cuda
+from chainer import functions as F
+from chainer import optimizers
+from chainer import training
+from chainer import Variable
+from chainer.iterators import SerialIterator
+from chainer.training import extensions as E
+from sklearn.preprocessing import StandardScaler
+
+from chainer_chemistry.dataset.converters import concat_mols
+from chainer_chemistry.dataset.parsers import CSVFileParser
+from chainer_chemistry.dataset.preprocessors import preprocess_method_dict
+from chainer_chemistry.datasets import NumpyTupleDataset
+from chainer_chemistry.models import MLP, NFP, GGNN, SchNet, WeaveNet, RSGCN, Regressor  # NOQA
 
 # ARGS
 parser = argparse.ArgumentParser()
@@ -51,6 +73,8 @@ parser.add_argument("--generator_mode", default="default", help="what kind of cu
 parser.add_argument("--loss_name", default="MSE", help="what kind of loss function to use")
 parser.add_argument("--momentum", default=-1.0, type=float, help="momentum of optimizer, if it requires one")
 parser.add_argument("--nesterov", action='store_true', help="whether SGD is Nesterov or not")
+parser.add_argument('--label', '-l', type=str, choices=label_names, default='', help='target label for logistic regression. Use'
+                    'all labels if this option is not specified.')
 args = parser.parse_args()
 
 #Setup
@@ -122,6 +146,43 @@ if generator_mode == "default":
 #create models
 if model_name == "baseline":
     model = BaselineModel(input_len, drop_rate=dropout)
+elif model_name == 'nfp':
+    print('Training an NFP predictor...')
+    mlp = MLP(out_dim=class_num, hidden_dim=n_unit)
+    nfp = NFP(out_dim=n_unit, hidden_dim=n_unit, n_layers=conv_layers)
+    model = GraphConvPredictor(nfp, mlp)
+elif model_name == 'ggnn':
+    print('Training a GGNN predictor...')
+    mlp = MLP(out_dim=class_num, hidden_dim=n_unit)
+    ggnn = GGNN(out_dim=n_unit, hidden_dim=n_unit, n_layers=conv_layers)
+    model = GraphConvPredictor(ggnn, mlp)
+elif model_name == 'schnet':
+    print('Training an SchNet predictor...')
+    mlp = MLP(out_dim=class_num, hidden_dim=n_unit)
+    schnet = SchNet(out_dim=class_num, hidden_dim=n_unit,
+                    n_layers=conv_layers)
+    model = GraphConvPredictor(schnet, None)
+elif model_name == 'weavenet':
+    print('Training a WeaveNet predictor...')
+    mlp = MLP(out_dim=class_num, hidden_dim=n_unit)
+    n_atom = 20
+    n_sub_layer = 1
+    weave_channels = [50] * conv_layers
+    weavenet = WeaveNet(weave_channels=weave_channels, hidden_dim=n_unit,
+                        n_sub_layer=n_sub_layer, n_atom=n_atom)
+    model = GraphConvPredictor(weavenet, mlp)
+elif model_name == 'rsgcn':
+    print('Training an RSGCN predictor...')
+    mlp = MLP(out_dim=class_num, hidden_dim=n_unit)
+    rsgcn = RSGCN(out_dim=n_unit, hidden_dim=n_unit, n_layers=conv_layers)
+    model = GraphConvPredictor(rsgcn, mlp)
+elif model_name == 'relgcn':
+    print('Training an RelGCN predictor...')
+    mlp = MLP(out_dim=class_num, hidden_dim=n_unit)
+    num_edge_type = 4
+    relgcn = RelGCN(out_channels=class_num, num_edge_type=num_edge_type,
+                    scale_adj=True)
+    model = GraphConvPredictor(relgcn, None)
 else:
     sys.exit("model_name %s was not found"%(model_name))
     
