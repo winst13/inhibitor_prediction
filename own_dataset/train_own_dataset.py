@@ -213,19 +213,13 @@ def main():
     preprocessor = set_up_preprocessor(args.method, args.max_atoms)
     parser = CSVFileParser(preprocessor, postprocess_label=postprocess_label,
                            labels=labels, smiles_col='SMILES')
-    if gpu:
-        train = parser.parse(args.train_datafile)['dataset'].to_gpu()
-    else:
-        train = parser.parse(args.train_datafile)['dataset']
+    train = parser.parse(args.train_datafile)['dataset']
     
     # Validation
     preprocessor = set_up_preprocessor(args.method, args.max_atoms)
     parser = CSVFileParser(preprocessor, postprocess_label=postprocess_label,
                            labels=labels, smiles_col='SMILES')
-    if gpu:
-        val = parser.parse(args.val_datafile)['dataset'].to_gpu()
-    else:
-        val = parser.parse(args.val_datafile)['dataset']
+    val = parser.parse(args.val_datafile)['dataset']
 
     # Set up the predictor.
     predictor = set_up_predictor(args.method, args.unit_num, args.conv_layers, class_num, max_atoms = args.max_atoms)
