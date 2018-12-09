@@ -113,7 +113,7 @@ def set_up_predictor(method, n_unit, conv_layers, class_num, max_atoms = 100):
 
         weavenet = WeaveNet(weave_channels=weave_channels, hidden_dim=n_unit,
                             n_sub_layer=n_sub_layer, n_atom=n_atom)
-        predictor = GraphConvPredictor(weavenet, mlp1, mlp2, None, None)
+        predictor = GraphConvPredictor(weavenet, mlp1, None, None, None)
     elif method == 'rsgcn':
         print('Training an RSGCN predictor...')
         rsgcn = RSGCN(out_dim=n_unit, hidden_dim=n_unit, n_layers=conv_layers)
@@ -189,6 +189,11 @@ def parse_arguments():
 def main():
     # Parse the arguments.
     args = parse_arguments()
+    
+    gpu = False
+    if args.gpu >= 0:
+        import cupy
+        gpu = True
 
     if args.label:
         labels = args.label
@@ -198,23 +203,34 @@ def main():
 
     # Dataset preparation. Postprocessing is required for the regression task.
     def postprocess_label(label_list):
-        return numpy.asarray(label_list, dtype=numpy.int32)
+        if gpu:
+            return cupy.asarray(label_list, dtype=cupy.int32)
+        else:
+            return numpy.asarray(label_list, dtype=numpy.int32)
 
     # Apply a preprocessor to the dataset.
     print('Preprocessing dataset...')
     preprocessor = set_up_preprocessor(args.method, args.max_atoms)
     parser = CSVFileParser(preprocessor, postprocess_label=postprocess_label,
                            labels=labels, smiles_col='SMILES')
-    train = parser.parse(args.train_datafile)['dataset']
+    if gpu:
+        train = parser.parse(args.train_datafile)['dataset'].to_gpu()
+    else:
+        train = parser.parse(args.train_datafile)['dataset']
     
     # Validation
     preprocessor = set_up_preprocessor(args.method, args.max_atoms)
     parser = CSVFileParser(preprocessor, postprocess_label=postprocess_label,
                            labels=labels, smiles_col='SMILES')
-    val = parser.parse(args.val_datafile)['dataset']
+    if gpu:
+        val = parser.parse(args.val_datafile)['dataset'].to_gpu()
+    else:
+        val = parser.parse(args.val_datafile)['dataset']
 
     # Set up the predictor.
     predictor = set_up_predictor(args.method, args.unit_num, args.conv_layers, class_num, max_atoms = args.max_atoms)
+    if gpu:
+        predictor = predictor.to_gpu()
 
     # Set up the iterator.
     train_iter = SerialIterator(train, args.batchsize)
