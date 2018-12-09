@@ -95,11 +95,11 @@ def set_up_predictor(method, n_unit, conv_layers, class_num, max_atoms = 100):
     if method == 'nfp':
         print('Training an NFP predictor...')
         nfp = NFP(out_dim=n_unit, hidden_dim=n_unit, n_layers=conv_layers)
-        predictor = GraphConvPredictor(nfp, mlp)
+        predictor = GraphConvPredictor(nfp, mlp1)
     elif method == 'ggnn':
         print('Training a GGNN predictor...')
         ggnn = GGNN(out_dim=n_unit, hidden_dim=n_unit, n_layers=conv_layers)
-        predictor = GraphConvPredictor(ggnn, mlp)
+        predictor = GraphConvPredictor(ggnn, mlp1)
     elif method == 'schnet':
         print('Training an SchNet predictor...')
         schnet = SchNet(out_dim=class_num, hidden_dim=n_unit,

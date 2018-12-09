@@ -6,6 +6,7 @@ data/*
 experiments/*
 assets/BACE/*
 *.csv
+own_dataset/result/log
 
 # Crappy .DS_Store thingy
 *.DS_Store
