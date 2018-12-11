@@ -13,6 +13,7 @@ from chainer.training.extensions import Evaluator
 
 from chainer import cuda
 from chainer import Variable
+from chainer import functions as F
 
 from chainer_chemistry.models.prediction import Classifier
 from chainer_chemistry.dataset.converters import concat_mols
@@ -42,16 +43,16 @@ def set_up_preprocessor(method, max_atoms):
 def parse_arguments():
     # Lists of supported preprocessing methods/models.
     method_list = ['nfp', 'ggnn', 'schnet', 'weavenet', 'rsgcn']
+    kinase_list = ['cdk2', 'egfr_erbB1', 'gsk3b', 'hgfr', 'map_k_p38a', 'tpk_lck', 'tpk_src', 'vegfr2']
 
     # Set up the argument parser.
     parser = ArgumentParser(description='Regression on own dataset')
-    parser.add_argument('--datafile', '-d', type=str,
-                        default='split/cdk2/test_cdk2.csv',
-                        help='csv file containing the dataset')
+    parser.add_argument('--datafile', '-d', type=str, choices=kinase_list,
+                        help='csv file containing the dataset', default='cdk2')
     parser.add_argument('--method', '-m', type=str, choices=method_list,
                         help='method name', default='nfp')
     parser.add_argument('--label', '-l', nargs='+',
-                        default=['value1', 'value2'],
+                        default='inhibits',
                         help='target label for regression')
     parser.add_argument('--conv-layers', '-c', type=int, default=4,
                         help='number of convolution layers')
@@ -70,9 +71,9 @@ def parse_arguments():
                         help='pickle protocol version')
     parser.add_argument('--in-dir', '-i', type=str, default='result',
                         help='directory containing the saved model')
-    parser.add_argument('--model-filename', type=str, default='regressor.pkl',
+    parser.add_argument('--model-filename', type=str, default='classifier.pkl',
                         help='saved model filename')
-    parser.add_argument('--max_atoms', type=int, default = 50,
+    parser.add_argument('--max_atoms', type=int, default = 100,
                         help='number of atoms max in a molecule')
     return parser.parse_args()
 
@@ -91,11 +92,16 @@ def main():
         return numpy.asarray(label_list, dtype=numpy.int32)
 
     print('Preprocessing dataset...')
+    train_path = "split/" + args.datafile + "/train_" + args.datafile + ".csv"
+    val_path = "split/" + args.datafile + "/val_" + args.datafile + ".csv"
+    test_path = "split/" + args.datafile + "/test_" + args.datafile + ".csv"
+    
     preprocessor = set_up_preprocessor(args.method, args.max_atoms)
     parser = CSVFileParser(preprocessor, postprocess_label=postprocess_label,
                            labels=labels, smiles_col='SMILES')
-    dataset = parser.parse(args.datafile)['dataset']
-    test = dataset
+    train = parser.parse(train_path)['dataset']
+    val = parser.parse(val_path)['dataset']
+    test = parser.parse(test_path)['dataset']
 
     print('Predicting...')
     # Set up the regressor.
@@ -104,7 +110,27 @@ def main():
 
     # Perform the prediction.
     print('Evaluating...')
-    test_iterator = SerialIterator(test, 16, repeat=False, shuffle=False)
+    train_iterator = SerialIterator(train, 1, repeat=False, shuffle=False)
+    val_iterator = SerialIterator(val, 1, repeat=False, shuffle=False)
+    test_iterator = SerialIterator(test, 1, repeat=False, shuffle=False)
+    
+    
+    with open("result/" + args.datafile + "/train_pred_" + args.datafile + ".csv", "w+") as file:
+        for i in train_iterator:
+            pred = F.sigmoid(classifier.predictor(numpy.asarray([i[0][0]]), numpy.asarray([i[0][1]])))
+            file.write("%f\n"%(pred._data[0][0][0]))
+    
+    with open("result/" + args.datafile + "/val_pred_" + args.datafile + ".csv", "w+") as file:
+        for i in val_iterator:
+            pred = F.sigmoid(classifier.predictor(numpy.asarray([i[0][0]]), numpy.asarray([i[0][1]])))
+            file.write("%f\n"%(pred._data[0][0][0]))
+           
+    with open("result/" + args.datafile + "/test_pred_" + args.datafile + ".csv", "w+") as file:
+        for i in test_iterator:
+            pred = F.sigmoid(classifier.predictor(numpy.asarray([i[0][0]]), numpy.asarray([i[0][1]])))
+            file.write("%f\n"%(pred._data[0][0][0]))
+    
+    
     eval_result = Evaluator(test_iterator, classifier, converter=concat_mols,
                             device=args.gpu)()
 

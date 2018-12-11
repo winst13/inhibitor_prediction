@@ -156,7 +156,7 @@ def parse_arguments():
     parser.add_argument('--method', '-m', type=str, choices=method_list,
                         help='method name', default='nfp')
     parser.add_argument('--label', '-l', nargs='+',
-                        default=['value1', 'value2'],
+                        default='inhibits',
                         help='target label for regression')
     parser.add_argument('--conv-layers', '-c', type=int, default=8,
                         help='number of convolution layers')
@@ -173,11 +173,9 @@ def parse_arguments():
                         help='number of units in one layer of the model')
     parser.add_argument('--seed', '-s', type=int, default=777,
                         help='random seed value')
-    parser.add_argument('--train-data-ratio', '-r', type=float, default=0.7,
-                        help='ratio of training data w.r.t the dataset')
     parser.add_argument('--protocol', type=int, default=2,
                         help='pickle protocol version')
-    parser.add_argument('--model-filename', type=str, default='regressor.pkl',
+    parser.add_argument('--model-filename', type=str, default='classifier.pkl',
                         help='saved model filename')
     parser.add_argument('--l2reg', type=float, default = 0,
                         help='weight decay for all weights')
