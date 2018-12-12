@@ -92,9 +92,14 @@ def main():
         return numpy.asarray(label_list, dtype=numpy.int32)
 
     print('Preprocessing dataset...')
+    train_path = "cluster_split/" + args.datafile + "_smiles_train.csv"
+    val_path = "cluster_split/" + args.datafile + "_smiles_val.csv"
+    test_path = "cluster_split/" + args.datafile + "_smiles_test.csv"
+    '''
     train_path = "split/" + args.datafile + "/train_" + args.datafile + ".csv"
     val_path = "split/" + args.datafile + "/val_" + args.datafile + ".csv"
     test_path = "split/" + args.datafile + "/test_" + args.datafile + ".csv"
+    '''
     
     preprocessor = set_up_preprocessor(args.method, args.max_atoms)
     parser = CSVFileParser(preprocessor, postprocess_label=postprocess_label,
@@ -105,7 +110,10 @@ def main():
 
     print('Predicting...')
     # Set up the regressor.
+    '''
     model_path = os.path.join(args.in_dir, args.model_filename)
+    '''
+    model_path = os.path.join(args.in_dir, args.datafile, args.model_filename)
     classifier = Classifier.load_pickle(model_path, device=args.gpu)
 
     # Perform the prediction.
