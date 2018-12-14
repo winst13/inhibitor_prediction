@@ -5,6 +5,8 @@ deepchem/*
 data/*
 experiments/*
 assets/BACE/*
+*.csv
+own_dataset/result/*
 
 # Crappy .DS_Store thingy
 *.DS_Store
