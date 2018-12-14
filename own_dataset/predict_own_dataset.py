@@ -126,17 +126,17 @@ def main():
     with open("result/" + args.datafile + "/train_pred_" + args.datafile + ".csv", "w+") as file:
         for i in train_iterator:
             pred = F.sigmoid(classifier.predictor(numpy.asarray([i[0][0]]), numpy.asarray([i[0][1]])))
-            file.write("%f\n"%(pred._data[0][0][0]))
+            file.write("%f, %d\n"%(pred._data[0][0][0], i[0][2][0]))
     
     with open("result/" + args.datafile + "/val_pred_" + args.datafile + ".csv", "w+") as file:
         for i in val_iterator:
             pred = F.sigmoid(classifier.predictor(numpy.asarray([i[0][0]]), numpy.asarray([i[0][1]])))
-            file.write("%f\n"%(pred._data[0][0][0]))
+            file.write("%f, %d\n"%(pred._data[0][0][0], i[0][2][0]))
            
     with open("result/" + args.datafile + "/test_pred_" + args.datafile + ".csv", "w+") as file:
         for i in test_iterator:
             pred = F.sigmoid(classifier.predictor(numpy.asarray([i[0][0]]), numpy.asarray([i[0][1]])))
-            file.write("%f\n"%(pred._data[0][0][0]))
+            file.write("%f, %d\n"%(pred._data[0][0][0], i[0][2][0]))
     
     
     eval_result = Evaluator(test_iterator, classifier, converter=concat_mols,
@@ -149,7 +149,7 @@ def main():
     eval_result['main/loss'] = loss
     print('Evaluation result: ', eval_result)
 
-    with open(os.path.join(args.in_dir, 'eval_result.json'), 'w') as f:
+    with open(os.path.join(args.in_dir, args.datafile, 'eval_result.json'), 'w') as f:
         json.dump(eval_result, f)
 
 
